@@ -309,27 +309,30 @@ function ensureTodayColumn() {
   }
 }
 
-function cycleCell(dateStr, habit) {
+function toggleCell(dateStr, habit) {
   const current = (state.data[dateStr] && state.data[dateStr][habit]) || 0;
-  const next = (current + 1) % 5;
+  const next = current > 0 ? 0 : 1;
   if (!state.data[dateStr]) state.data[dateStr] = {};
   state.data[dateStr][habit] = next;
   render();
   saveValue(dateStr, habit, next);
 }
 
-// each cell's own value (0-4) maps directly to its own color: 0% / 25% / 50% / 90% / 100%
-function levelClass(v) {
-  return v > 0 ? 'l' + v : '';
+// Buckets: 0% / 25% / 50% / 90% / 100%
+function levelForPercent(pct) {
+  if (pct >= 100) return 4;
+  if (pct >= 90) return 3;
+  if (pct >= 50) return 2;
+  if (pct >= 25) return 1;
+  return 0;
 }
 
 function dayPercent(dateStr) {
   if (!state.habits.length) return 0;
   const dayData = state.data[dateStr] || {};
-  let total = 0;
-  state.habits.forEach(h => { total += (dayData[h] || 0); });
-  const max = state.habits.length * 4;
-  return max ? Math.round((total / max) * 100) : 0;
+  let checked = 0;
+  state.habits.forEach(h => { if ((dayData[h] || 0) > 0) checked += 1; });
+  return Math.round((checked / state.habits.length) * 100);
 }
 
 function renderPastDays() {
@@ -356,6 +359,10 @@ function render() {
     return;
   }
 
+  // one shared color per date, based on how many habits are checked that day
+  const dateLevel = {};
+  state.dates.forEach(d => { dateLevel[d] = levelForPercent(dayPercent(d)); });
+
   let html = '<table><thead><tr><th class="habit-col-header"></th>';
   state.dates.forEach(d => {
     html += `<th class="date-col">${prettyDate(d)}</th>`;
@@ -365,8 +372,9 @@ function render() {
   state.habits.forEach(habit => {
     html += `<tr><td class="habit-name">${escapeHtml(habit)}</td>`;
     state.dates.forEach(d => {
-      const v = (state.data[d] && state.data[d][habit]) || 0;
-      html += `<td><button class="cell ${levelClass(v)}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
+      const checked = ((state.data[d] && state.data[d][habit]) || 0) > 0;
+      const cls = checked ? 'l' + dateLevel[d] : '';
+      html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
     });
     html += '</tr>';
   });
@@ -376,7 +384,7 @@ function render() {
 
   host.querySelectorAll('.cell').forEach(btn => {
     btn.addEventListener('click', () => {
-      cycleCell(btn.dataset.date, btn.dataset.habit);
+      toggleCell(btn.dataset.date, btn.dataset.habit);
     });
   });
 }
