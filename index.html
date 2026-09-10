@@ -211,19 +211,12 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Habit Tracker</h1>
-
   <div id="setupBanner">
     ⚠️ Set <code>SCRIPT_URL</code> at the top of the &lt;script&gt; section in this file to your deployed
     Google Apps Script web app URL before this will load or save any data.
   </div>
 
   <div id="status"></div>
-
-  <div class="past-days-section">
-    <div class="past-days-label">Past Days</div>
-    <div class="past-days-grid" id="pastDaysHost"></div>
-  </div>
 
   <div class="card">
     <div id="tableHost"></div>
@@ -233,8 +226,13 @@
     <span><span class="swatch" style="background:var(--lvl0);border:1px solid var(--line)"></span>0%</span>
     <span><span class="swatch" style="background:var(--lvl1)"></span>25%</span>
     <span><span class="swatch" style="background:var(--lvl2)"></span>50%</span>
-    <span><span class="swatch" style="background:var(--lvl3)"></span>75%</span>
+    <span><span class="swatch" style="background:var(--lvl3)"></span>90%</span>
     <span><span class="swatch" style="background:var(--lvl4)"></span>100%</span>
+  </div>
+
+  <div class="past-days-section">
+    <div class="past-days-label">Past Days</div>
+    <div class="past-days-grid" id="pastDaysHost"></div>
   </div>
 </div>
 
@@ -311,26 +309,30 @@ function ensureTodayColumn() {
   }
 }
 
-function cycleCell(dateStr, habit) {
+function toggleCell(dateStr, habit) {
   const current = (state.data[dateStr] && state.data[dateStr][habit]) || 0;
-  const next = (current + 1) % 5;
+  const next = current > 0 ? 0 : 1;
   if (!state.data[dateStr]) state.data[dateStr] = {};
   state.data[dateStr][habit] = next;
   render();
   saveValue(dateStr, habit, next);
 }
 
-function levelClass(v) {
-  return v > 0 ? 'l' + v : '';
+// Buckets: 0% / 25% / 50% / 90% / 100%
+function levelForPercent(pct) {
+  if (pct >= 100) return 4;
+  if (pct >= 90) return 3;
+  if (pct >= 50) return 2;
+  if (pct >= 25) return 1;
+  return 0;
 }
 
 function dayPercent(dateStr) {
   if (!state.habits.length) return 0;
   const dayData = state.data[dateStr] || {};
-  let total = 0;
-  state.habits.forEach(h => { total += (dayData[h] || 0); });
-  const max = state.habits.length * 4;
-  return max ? Math.round((total / max) * 100) : 0;
+  let checked = 0;
+  state.habits.forEach(h => { if ((dayData[h] || 0) > 0) checked += 1; });
+  return Math.round((checked / state.habits.length) * 100);
 }
 
 function renderPastDays() {
@@ -357,6 +359,10 @@ function render() {
     return;
   }
 
+  // one shared color level per date, based on how many habits are checked that day
+  const dateLevel = {};
+  state.dates.forEach(d => { dateLevel[d] = levelForPercent(dayPercent(d)); });
+
   let html = '<table><thead><tr><th class="habit-col-header">Habit</th>';
   state.dates.forEach(d => {
     html += `<th class="date-col">${prettyDate(d)}</th>`;
@@ -366,8 +372,9 @@ function render() {
   state.habits.forEach(habit => {
     html += `<tr><td class="habit-name">${escapeHtml(habit)}</td>`;
     state.dates.forEach(d => {
-      const v = (state.data[d] && state.data[d][habit]) || 0;
-      html += `<td><button class="cell ${levelClass(v)}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
+      const checked = ((state.data[d] && state.data[d][habit]) || 0) > 0;
+      const cls = checked ? 'l' + dateLevel[d] : '';
+      html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
     });
     html += '</tr>';
   });
@@ -377,7 +384,7 @@ function render() {
 
   host.querySelectorAll('.cell').forEach(btn => {
     btn.addEventListener('click', () => {
-      cycleCell(btn.dataset.date, btn.dataset.habit);
+      toggleCell(btn.dataset.date, btn.dataset.habit);
     });
   });
 }
