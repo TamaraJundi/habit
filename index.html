@@ -134,6 +134,14 @@
   .cell.l2 { background: var(--lvl2); border-color: var(--lvl2); }
   .cell.l3 { background: var(--lvl3); border-color: var(--lvl3); }
   .cell.l4 { background: var(--lvl4); border-color: var(--lvl4); }
+  .cell.checked {
+    font-size: 15px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .cell.checked.l2, .cell.checked.l3, .cell.checked.l4 { color: #fff; }
   .legend {
     display: flex;
     justify-content: center;
@@ -363,7 +371,7 @@ function render() {
   const dateLevel = {};
   state.dates.forEach(d => { dateLevel[d] = levelForPercent(dayPercent(d)); });
 
-  let html = '<table><thead><tr><th class="habit-col-header">Habit</th>';
+  let html = '<table><thead><tr><th class="habit-col-header"></th>';
   state.dates.forEach(d => {
     html += `<th class="date-col">${prettyDate(d)}</th>`;
   });
@@ -373,8 +381,9 @@ function render() {
     html += `<tr><td class="habit-name">${escapeHtml(habit)}</td>`;
     state.dates.forEach(d => {
       const checked = ((state.data[d] && state.data[d][habit]) || 0) > 0;
-      const cls = checked ? 'l' + dateLevel[d] : '';
-      html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
+      const cls = checked ? 'l' + dateLevel[d] + ' checked' : '';
+      const mark = checked ? '✓' : '';
+      html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}">${mark}</button></td>`;
     });
     html += '</tr>';
   });
