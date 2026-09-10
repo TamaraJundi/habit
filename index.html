@@ -271,7 +271,9 @@ async function loadData() {
   }
   setStatus('Loading…');
   try {
-    const res = await fetch(SCRIPT_URL, { method: 'GET' });
+    // cache-bust: append a unique query param and force the browser to skip any cached copy
+    const bustedUrl = SCRIPT_URL + (SCRIPT_URL.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
+    const res = await fetch(bustedUrl, { method: 'GET', cache: 'no-store' });
     const json = await res.json();
     state = json;
     // sort dates descending (newest first)
