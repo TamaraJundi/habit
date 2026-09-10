@@ -134,14 +134,6 @@
   .cell.l2 { background: var(--lvl2); border-color: var(--lvl2); }
   .cell.l3 { background: var(--lvl3); border-color: var(--lvl3); }
   .cell.l4 { background: var(--lvl4); border-color: var(--lvl4); }
-  .cell.checked {
-    font-size: 15px;
-    line-height: 1;
-    font-weight: 700;
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-  .cell.checked.l2, .cell.checked.l3, .cell.checked.l4 { color: #fff; }
   .legend {
     display: flex;
     justify-content: center;
@@ -317,30 +309,27 @@ function ensureTodayColumn() {
   }
 }
 
-function toggleCell(dateStr, habit) {
+function cycleCell(dateStr, habit) {
   const current = (state.data[dateStr] && state.data[dateStr][habit]) || 0;
-  const next = current > 0 ? 0 : 1;
+  const next = (current + 1) % 5;
   if (!state.data[dateStr]) state.data[dateStr] = {};
   state.data[dateStr][habit] = next;
   render();
   saveValue(dateStr, habit, next);
 }
 
-// Buckets: 0% / 25% / 50% / 90% / 100%
-function levelForPercent(pct) {
-  if (pct >= 100) return 4;
-  if (pct >= 90) return 3;
-  if (pct >= 50) return 2;
-  if (pct >= 25) return 1;
-  return 0;
+// each cell's own value (0-4) maps directly to its own color: 0% / 25% / 50% / 90% / 100%
+function levelClass(v) {
+  return v > 0 ? 'l' + v : '';
 }
 
 function dayPercent(dateStr) {
   if (!state.habits.length) return 0;
   const dayData = state.data[dateStr] || {};
-  let checked = 0;
-  state.habits.forEach(h => { if ((dayData[h] || 0) > 0) checked += 1; });
-  return Math.round((checked / state.habits.length) * 100);
+  let total = 0;
+  state.habits.forEach(h => { total += (dayData[h] || 0); });
+  const max = state.habits.length * 4;
+  return max ? Math.round((total / max) * 100) : 0;
 }
 
 function renderPastDays() {
@@ -367,10 +356,6 @@ function render() {
     return;
   }
 
-  // one shared color level per date, based on how many habits are checked that day
-  const dateLevel = {};
-  state.dates.forEach(d => { dateLevel[d] = levelForPercent(dayPercent(d)); });
-
   let html = '<table><thead><tr><th class="habit-col-header"></th>';
   state.dates.forEach(d => {
     html += `<th class="date-col">${prettyDate(d)}</th>`;
@@ -380,10 +365,8 @@ function render() {
   state.habits.forEach(habit => {
     html += `<tr><td class="habit-name">${escapeHtml(habit)}</td>`;
     state.dates.forEach(d => {
-      const checked = ((state.data[d] && state.data[d][habit]) || 0) > 0;
-      const cls = checked ? 'l' + dateLevel[d] + ' checked' : '';
-      const mark = checked ? '✓' : '';
-      html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}">${mark}</button></td>`;
+      const v = (state.data[d] && state.data[d][habit]) || 0;
+      html += `<td><button class="cell ${levelClass(v)}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
     });
     html += '</tr>';
   });
@@ -393,7 +376,7 @@ function render() {
 
   host.querySelectorAll('.cell').forEach(btn => {
     btn.addEventListener('click', () => {
-      toggleCell(btn.dataset.date, btn.dataset.habit);
+      cycleCell(btn.dataset.date, btn.dataset.habit);
     });
   });
 }
