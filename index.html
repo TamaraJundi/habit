@@ -118,7 +118,12 @@
     font-weight: 600;
     padding-bottom: 6px;
     white-space: nowrap;
+    border-bottom: 3px solid var(--lvl0);
   }
+  th.date-col.dl1 { border-bottom-color: var(--lvl1); }
+  th.date-col.dl2 { border-bottom-color: var(--lvl2); }
+  th.date-col.dl3 { border-bottom-color: var(--lvl3); }
+  th.date-col.dl4 { border-bottom-color: var(--lvl4); }
   .cell {
     width: 30px;
     height: 30px;
@@ -126,14 +131,12 @@
     background: var(--lvl0);
     border: 1px solid var(--line);
     cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
+    transition: background 0.12s ease, transform 0.1s ease;
     padding: 0;
   }
   .cell:hover { transform: scale(1.08); }
-  .cell.l1 { background: var(--lvl1); border-color: var(--lvl1); }
-  .cell.l2 { background: var(--lvl2); border-color: var(--lvl2); }
-  .cell.l3 { background: var(--lvl3); border-color: var(--lvl3); }
-  .cell.l4 { background: var(--lvl4); border-color: var(--lvl4); }
+  /* checked state is ALWAYS this one color — independent of any other cell */
+  .cell.on { background: var(--lvl3); border-color: var(--lvl3); }
   .legend {
     display: flex;
     justify-content: center;
@@ -223,6 +226,11 @@
   </div>
 
   <div class="legend">
+    <span><span class="swatch" style="background:var(--lvl0);border:1px solid var(--line)"></span>not done</span>
+    <span><span class="swatch" style="background:var(--lvl3)"></span>done</span>
+  </div>
+  <div class="legend" style="margin-top:4px;">
+    <span style="color:var(--muted)">day progress (shown under each date):</span>
     <span><span class="swatch" style="background:var(--lvl0);border:1px solid var(--line)"></span>0%</span>
     <span><span class="swatch" style="background:var(--lvl1)"></span>25%</span>
     <span><span class="swatch" style="background:var(--lvl2)"></span>50%</span>
@@ -361,21 +369,23 @@ function render() {
     return;
   }
 
-  // one shared color per date, based on how many habits are checked that day
+  // day-progress tier is shown as a stripe under each DATE HEADER only —
+  // it never changes how an individual habit cell looks.
   const dateLevel = {};
   state.dates.forEach(d => { dateLevel[d] = levelForPercent(dayPercent(d)); });
 
   let html = '<table><thead><tr><th class="habit-col-header"></th>';
   state.dates.forEach(d => {
-    html += `<th class="date-col">${prettyDate(d)}</th>`;
+    html += `<th class="date-col dl${dateLevel[d]}">${prettyDate(d)}</th>`;
   });
   html += '</tr></thead><tbody>';
 
   state.habits.forEach(habit => {
     html += `<tr><td class="habit-name">${escapeHtml(habit)}</td>`;
     state.dates.forEach(d => {
+      // a cell's look depends ONLY on its own checked state — never on any other cell
       const checked = ((state.data[d] && state.data[d][habit]) || 0) > 0;
-      const cls = checked ? 'l' + dateLevel[d] : '';
+      const cls = checked ? 'on' : '';
       html += `<td><button class="cell ${cls}" data-date="${d}" data-habit="${escapeAttr(habit)}"></button></td>`;
     });
     html += '</tr>';
