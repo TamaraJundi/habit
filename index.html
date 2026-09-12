@@ -157,7 +157,20 @@
     height: 26px;
     border-radius: 7px;
     background: var(--tier-0);
-    cursor: default;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+
+  .cell:hover {
+    box-shadow: 0 0 0 2px var(--accent) inset;
+  }
+
+  .cell:active {
+    transform: scale(0.9);
+  }
+
+  .cell.pending {
+    opacity: 0.55;
   }
 
   /* Past days */
@@ -298,8 +311,29 @@
     lastUpdated: document.getElementById("lastUpdated")
   };
 
+  var currentPayload = null;
+  var pendingWrites = 0;
+
   function getApiUrl() {
     return CONFIG.APPS_SCRIPT_URL || localStorage.getItem("habitTrackerApiUrl") || "";
+  }
+
+  function todayStr() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  // So you can tap today's habits even before the sheet has a row for today.
+  function ensureTodayPresent(payload) {
+    var t = todayStr();
+    var exists = payload.days.some(function (d) { return d.date === t; });
+    if (!exists) {
+      var habits = {};
+      payload.habitNames.forEach(function (h) { habits[h] = 0; });
+      payload.days.push({ date: t, habits: habits });
+    }
   }
 
   function formatDateLabel(iso) {
@@ -353,8 +387,9 @@
         var stat = dayStats[day.date];
         var color = done ? stat.tier.color : TIERS[0].color;
         var title = escapeHtml(habit) + " — " + formatDateLabel(day.date) + ": " +
-          (done ? "done" : "not done") + " (day total " + Math.round(stat.pct) + "%)";
-        html += '<td><div class="cell" style="background:' + color + '" title="' + title + '"></div></td>';
+          (done ? "done (tap to undo)" : "not done (tap to mark done)") + " · day total " + Math.round(stat.pct) + "%";
+        html += '<td><div class="cell" data-date="' + escapeHtml(day.date) + '" data-habit="' + escapeHtml(habit) +
+          '" style="background:' + color + '" title="' + title + '"></div></td>';
       });
       html += "</tr>";
     });
@@ -394,8 +429,10 @@
     renderPastDays(payload, dayStats);
     els.dataArea.hidden = false;
     els.pastDaysCard.hidden = false;
-    els.status.classList.remove("error");
-    els.status.textContent = payload.habitNames.length + " habits · " + payload.days.length + " days tracked";
+    if (pendingWrites === 0) {
+      els.status.classList.remove("error");
+      els.status.textContent = payload.habitNames.length + " habits · " + payload.days.length + " days tracked";
+    }
     var when = payload.generatedAt ? new Date(payload.generatedAt) : new Date();
     els.lastUpdated.textContent = "Updated " + when.toLocaleString();
   }
@@ -420,6 +457,8 @@
       })
       .then(function (payload) {
         if (!payload || !payload.habitNames) throw new Error("Unexpected response shape");
+        ensureTodayPresent(payload);
+        currentPayload = payload;
         render(payload);
       })
       .catch(function (err) {
@@ -429,6 +468,58 @@
           "deployment access is set to \"Anyone\".";
       });
   }
+
+  // Writes are sent one at a time, in order, so two quick taps on a brand
+  // new date (e.g. today, before the sheet has a row for it yet) can't
+  // race each other into creating duplicate rows.
+  var writeQueue = Promise.resolve();
+
+  function queueWrite(date, habit, done, onSettled) {
+    pendingWrites++;
+    writeQueue = writeQueue
+      .then(function () {
+        return fetch(getApiUrl(), {
+          method: "POST",
+          // text/plain avoids a CORS preflight that Apps Script doesn't handle
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ date: date, habit: habit, done: done })
+        });
+      })
+      .then(function (res) { return res.json(); })
+      .then(function (json) { onSettled(!!(json && json.ok), json && json.error); })
+      .catch(function (err) { onSettled(false, err.message); })
+      .then(function () {
+        pendingWrites--;
+        if (pendingWrites === 0 && currentPayload) render(currentPayload);
+      });
+  }
+
+  function toggleCell(date, habit) {
+    if (!currentPayload) return;
+    var day = currentPayload.days.filter(function (d) { return d.date === date; })[0];
+    if (!day) return;
+
+    var prev = day.habits[habit] ? 1 : 0;
+    var next = prev ? 0 : 1;
+    day.habits[habit] = next;
+    render(currentPayload);
+    els.status.classList.remove("error");
+    els.status.textContent = "Saving…";
+
+    queueWrite(date, habit, !!next, function (ok, errMsg) {
+      if (!ok) {
+        day.habits[habit] = prev; // revert the optimistic change
+        els.status.classList.add("error");
+        els.status.textContent = "Couldn't save that — " + (errMsg || "check your connection") + ". Reverted.";
+      }
+    });
+  }
+
+  els.heatmapTable.addEventListener("click", function (e) {
+    var cell = e.target.closest(".cell");
+    if (!cell) return;
+    toggleCell(cell.getAttribute("data-date"), cell.getAttribute("data-habit"));
+  });
 
   els.saveUrlBtn.addEventListener("click", function () {
     var val = els.urlInput.value.trim();
@@ -442,11 +533,8 @@
   });
 
   els.daysLimit.addEventListener("change", function () {
-    var url = getApiUrl();
-    if (!url) return;
-    fetch(url).then(function (r) { return r.json(); }).then(function (payload) {
-      renderPastDays(payload, buildDayStats(payload));
-    });
+    if (!currentPayload) return;
+    renderPastDays(currentPayload, buildDayStats(currentPayload));
   });
 
   // Prefill the connect box if a URL was saved before but CONFIG is empty
