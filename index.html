@@ -56,12 +56,6 @@
     margin-top: 2px;
   }
 
-  .header-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
   a.btn, button.btn {
     display: inline-flex;
     align-items: center;
@@ -224,10 +218,6 @@
       <h1>Habit Tracker</h1>
       <div class="sub" id="lastUpdated">Not connected yet</div>
     </div>
-    <div class="header-actions">
-      <a class="btn" id="sheetLink" href="#" target="_blank" rel="noopener">Open Google Sheet ↗</a>
-      <button class="btn" id="refreshBtn">Refresh</button>
-    </div>
   </header>
 
   <div class="card" id="connectPanel" hidden>
@@ -274,8 +264,7 @@
   // it in this browser instead.
   // ---------------------------------------------------------------------
   var CONFIG = {
-    APPS_SCRIPT_URL: "",
-    SHEET_URL: "https://docs.google.com/spreadsheets/d/1TacVXg8QW09OYAVp9x09mltvGGxwGPu3L0ZsbelUQ1U/edit?gid=0#gid=0"
+    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxgBqb_vhPZFm4LZnma4m492W97xYjp2T9c8e7_CBcmUaZQKBN0hR9aQ5DPDnXDgRP3nw/exec"
   };
 
   var TIERS = [
@@ -306,12 +295,8 @@
     pastDaysCard: document.getElementById("pastDaysCard"),
     pastDaysGrid: document.getElementById("pastDaysGrid"),
     daysLimit: document.getElementById("daysLimit"),
-    lastUpdated: document.getElementById("lastUpdated"),
-    sheetLink: document.getElementById("sheetLink"),
-    refreshBtn: document.getElementById("refreshBtn")
+    lastUpdated: document.getElementById("lastUpdated")
   };
-
-  els.sheetLink.href = CONFIG.SHEET_URL;
 
   function getApiUrl() {
     return CONFIG.APPS_SCRIPT_URL || localStorage.getItem("habitTrackerApiUrl") || "";
@@ -456,7 +441,6 @@
     loadData();
   });
 
-  els.refreshBtn.addEventListener("click", loadData);
   els.daysLimit.addEventListener("change", function () {
     var url = getApiUrl();
     if (!url) return;
